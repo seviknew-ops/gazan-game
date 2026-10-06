@@ -2,21 +2,25 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Dino Shooter 67 - GAZAN EDITION</title>
+    <title>GAZAN & CHEREMSHA: THE SHOOTER</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
         #ui {
             position: absolute; top: 20px; left: 20px; color: #0f0; 
-            font-size: 24px; text-shadow: 2px 2px #000; pointer-events: none;
+            font-size: 20px; text-shadow: 2px 2px #000; pointer-events: none;
         }
         #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
-            border: 2px solid #0f0; border-radius: 50%; transform: translate(-50%, -50%);
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+            border: 2px solid #0f0; transform: translate(-50%, -50%); border-radius: 50%;
+        }
+        #weapon-info {
+            position: absolute; bottom: 20px; right: 20px; color: white; 
+            font-size: 30px; text-align: right; text-shadow: 2px 2px #000;
         }
         #instructions {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; background: rgba(0,0,0,0.8); padding: 20px; text-align: center;
-            cursor: pointer; border: 3px solid #0f0;
+            color: white; background: rgba(0,0,0,0.9); padding: 30px; text-align: center;
+            border: 4px solid #f0f; cursor: pointer; z-index: 10;
         }
     </style>
 </head>
@@ -24,48 +28,57 @@
 
     <div id="ui">
         Игрок: <b>Спецназ 67</b><br>
-        Цель: Уничтожить Газана<br>
+        Цель: Зачистить район от Газанов<br>
         Счёт: <span id="score">0</span>
     </div>
-    <div id="crosshair"></div>
-    <div id="instructions">
-        <h1>🦖 DINO SHOOTER 67 🦖</h1>
-        <p>Управление: WASD - ходить, МЫШЬ - смотреть, КЛИК - стрелять</p>
-        <p><b>КЛИКНИ ТУТ, ЧТОБЫ НАЧАТЬ ИГРУ</b></p>
+
+    <div id="weapon-info">
+        Оружие: <span id="weapon-name">AK-47</span><br>
+        <small style="font-size: 15px;">Клавиши 1 и 2 для смены</small>
     </div>
 
-    <!-- Подключаем движок Three.js -->
+    <div id="crosshair"></div>
+
+    <div id="instructions">
+        <h1>🦖 GAZAN & CHEREMSHA 🐰</h1>
+        <p>WASD - Ходить (плавно)<br>МЫШЬ - Смотреть<br>КЛИК - Стрелять<br>1 - АК-47 | 2 - ГЛОК</p>
+        <p><b style="color: #f0f;">КЛИКНИ, ЧТОБЫ ВОЙТИ В БОЙ</b></p>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <script>
-        let scene, camera, renderer, controls;
+        let scene, camera, renderer, clock;
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let velocity = new THREE.Vector3();
         let direction = new THREE.Vector3();
         let score = 0;
         let dinosaurs = [];
+        let currentWeapon = 'AK'; // 'AK' or 'GLOCK'
+
+        const weapons = {
+            'AK': { name: 'AK-47', color: 0x553311, damage: 2, speed: 0.1, rate: 150 },
+            'GLOCK': { name: 'Glock', color: 0x333333, damage: 1, speed: 0.2, rate: 300 }
+        };
 
         const instructions = document.getElementById('instructions');
 
-        // Инициализация игры
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x223322);
-            scene.fog = new THREE.Fog(0x223322, 0, 50);
+            scene.background = new THREE.Color(0x111122);
+            scene.fog = new THREE.Fog(0x111122, 0, 60);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            clock = new THREE.Clock();
             
-            const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
             scene.add(light);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            dirLight.position.set(10, 10, 10);
-            scene.add(dirLight);
-
-            // Пол (Земля)
-            const floorGeo = new THREE.PlaneGeometry(100, 100);
-            const floorMat = new THREE.MeshPhongMaterial({ color: 0x334433 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
+            // Земля
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(200, 200),
+                new THREE.MeshPhongMaterial({ color: 0x222222 })
+            );
             floor.rotation.x = -Math.PI / 2;
             scene.add(floor);
 
@@ -73,11 +86,8 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Управление камерой (Pointer Lock)
-            document.addEventListener('click', () => {
-                document.body.requestPointerLock();
-            });
-
+            // Управление
+            document.addEventListener('click', () => document.body.requestPointerLock());
             document.addEventListener('pointerlockchange', () => {
                 instructions.style.display = document.pointerLockElement === document.body ? 'none' : 'block';
             });
@@ -87,6 +97,8 @@
                 if(e.code === 'KeyS') moveBackward = true;
                 if(e.code === 'KeyA') moveLeft = true;
                 if(e.code === 'KeyD') moveRight = true;
+                if(e.key === '1') switchWeapon('AK');
+                if(e.key === '2') switchWeapon('GLOCK');
             });
 
             document.addEventListener('keyup', (e) => {
@@ -109,29 +121,46 @@
             camera.position.y = 1.6;
             camera.rotation.order = 'YXZ';
 
-            spawnDino();
+            spawnEnemy('gazan');
             animate();
         }
 
-        // Создание "Динозавра Газана" (сделан из блоков для простоты)
-        function spawnDino() {
+        function switchWeapon(type) {
+            currentWeapon = type;
+            document.getElementById('weapon-name').innerText = weapons[type].name;
+        }
+
+        function spawnEnemy(type) {
             const group = new THREE.Group();
             
-            // Тело Газана
-            const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), new THREE.MeshPhongMaterial({color: 0x44aa44}));
-            body.position.y = 1;
+            // Текстуры лиц
+            const loader = new THREE.TextureLoader();
+            const faceTexture = loader.load(type === 'gazan' ? 'gazan.jpg' : 'cheremsha.jpg');
+
+            // Тело
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1.5, 2), 
+                new THREE.MeshPhongMaterial({ color: type === 'gazan' ? 0x44aa44 : 0xccaa88 })
+            );
+            body.position.y = 0.75;
             group.add(body);
 
-            // Голова
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshPhongMaterial({color: 0x44aa44}));
-            head.position.set(0, 1.8, 1);
+            // Голова с ЛИЦОМ
+            const head = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.8, 0.8),
+                new THREE.MeshPhongMaterial({ map: faceTexture })
+            );
+            head.position.set(0, 1.8, 0.8);
             group.add(head);
 
-            group.position.set(Math.random()*40-20, 0, Math.random()*40-20);
+            group.position.set(Math.random()*60-30, 0, Math.random()*60-30);
             scene.add(group);
-            dinosaurs.push(group);
+            dinosaurs.push({ mesh: group, type: type });
 
-            setTimeout(spawnDino, 3000); // Новый Газан каждые 3 секунды
+            // Рандомно спавним Газана или Черемшу
+            setTimeout(() => {
+                spawnEnemy(Math.random() > 0.2 ? 'gazan' : 'cheremsha');
+            }, 3000);
         }
 
         function shoot() {
@@ -139,28 +168,31 @@
 
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
-
-            const intersects = raycaster.intersectObjects(dinosaurs, true);
+            const intersects = raycaster.intersectObjects(dinosaurs.map(d => d.mesh), true);
 
             if (intersects.length > 0) {
-                let hitObject = intersects[0].object;
-                while(hitObject.parent && !dinosaurs.includes(hitObject.parent)) {
-                    hitObject = hitObject.parent;
+                let hitObj = intersects[0].object;
+                while(hitObj.parent && !dinosaurs.find(d => d.mesh === hitObj.parent)) {
+                    hitObj = hitObj.parent;
                 }
                 
-                scene.remove(hitObject);
-                dinosaurs = dinosaurs.filter(d => d !== hitObject);
-                score++;
-                document.getElementById('score').innerText = score;
-                console.log("Газан повержен!");
+                const target = dinosaurs.find(d => d.mesh === hitObj);
+                if(target) {
+                    scene.remove(target.mesh);
+                    dinosaurs = dinosaurs.filter(d => d !== target);
+                    score += (target.type === 'cheremsha' ? 5 : 1);
+                    document.getElementById('score').innerText = score;
+                }
             }
         }
 
         function animate() {
             requestAnimationFrame(animate);
+            const delta = clock.getDelta();
 
             if (document.pointerLockElement === document.body) {
-                const delta = 0.1;
+                // ПЛАВНОЕ ПЕРЕМЕЩЕНИЕ (ASWD)
+                const speed = 5.0;
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
 
@@ -168,18 +200,18 @@
                 direction.x = Number(moveRight) - Number(moveLeft);
                 direction.normalize();
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 40.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 40.0 * delta;
+                if (moveForward || moveBackward) velocity.z -= direction.z * speed * 50.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * speed * 50.0 * delta;
 
                 camera.translateX(-velocity.x * delta);
                 camera.translateZ(velocity.z * delta);
                 camera.position.y = 1.6;
             }
 
-            // Простая анимация динозавров (движение к игроку)
             dinosaurs.forEach(dino => {
-                dino.lookAt(camera.position.x, 0, camera.position.z);
-                dino.translateZ(0.03);
+                dino.mesh.lookAt(camera.position.x, 0, camera.position.z);
+                const s = dino.type === 'cheremsha' ? 0.06 : 0.03; // Черемша быстрее!
+                dino.mesh.translateZ(s);
             });
 
             renderer.render(scene, camera);
